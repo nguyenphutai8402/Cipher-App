@@ -1,0 +1,184 @@
+package Model;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.security.NoSuchAlgorithmException;
+import java.security.SecureRandom;
+import java.security.Security;
+import java.util.Base64;
+
+import javax.crypto.Cipher;
+import javax.crypto.KeyGenerator;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
+
+import org.bouncycastle.jce.provider.BouncyCastleProvider;
+
+import Config.DES_AES_Config;
+
+public class TwoFish {
+	private SecretKey key;	
+	private byte[] ivBase64;
+	private IvParameterSpec iv;
+	private String mode;
+	private String padding;
+	public TwoFish() {
+		Security.addProvider(new BouncyCastleProvider());
+	}
+	public SecretKey getKey() {
+		return key;
+	}
+	public void setKey(SecretKey key) {
+		this.key = key;
+	}
+	public byte[] getIvBase64() {
+		return ivBase64;
+	}
+	public void setIvBase64(byte[] ivBase64) {
+		this.ivBase64 = ivBase64;
+	}
+	public IvParameterSpec getIv() {
+		return iv;
+	}
+	public void setIv(IvParameterSpec iv) {
+		this.iv = iv;
+	}
+	public String getMode() {
+		return mode;
+	}
+	public void setMode(String mode) {
+		this.mode = mode;
+	}
+	public String getPadding() {
+		return padding;
+	}
+	public void setPadding(String padding) {
+		this.padding = padding;
+	}
+	public SecretKey createKey() throws NoSuchAlgorithmException {
+		KeyGenerator keyGenerator = KeyGenerator.getInstance("Twofish");
+		keyGenerator.init(128);
+		key = keyGenerator.generateKey();
+		return key;
+	}
+	public SecretKey generateSecretKeyFromBase64(String base64Key) {
+        try {
+            byte[] keyBytes = Base64.getDecoder().decode(base64Key);
+            key = new SecretKeySpec(keyBytes, "Twofish");
+            return key;
+        } catch (Exception e) {
+            e.printStackTrace();
+            return null;
+        }
+    }
+	
+	public byte[] createBytesIV() {
+		ivBase64 = new byte[16];
+	    new SecureRandom().nextBytes(ivBase64);
+	    return ivBase64;
+	}
+	public IvParameterSpec generateIVFromBase64(String base64IV) {
+	    byte[] iVBytes = Base64.getDecoder().decode(base64IV);
+	    iv = new IvParameterSpec(iVBytes);
+	    return iv;
+	}
+	public IvParameterSpec createIV() {
+		iv = new IvParameterSpec(createBytesIV());
+		return iv;
+	}
+	public String encrypt(String text) throws Exception {
+		if (key == null) return "";
+		String instance = "Twofish/" + mode + "/" + padding;
+		Cipher cipher = Cipher.getInstance(instance, "BC");
+		if(mode.equals(DES_AES_Config.MODE_ECB)) {
+			cipher.init(Cipher.ENCRYPT_MODE, key);
+		}else {
+			cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+		}
+		byte[] plainText = text.getBytes("UTF-8");
+		byte[] cipherText = cipher.doFinal(plainText);
+		return Base64.getEncoder().encodeToString(cipherText);
+	}
+	
+	public String decrypt(String input) throws Exception {
+		if (key == null) return "";
+		String instance = "Twofish/" + mode + "/" + padding;
+		Cipher cipher = Cipher.getInstance(instance, "BC");
+		if(mode.equals(DES_AES_Config.MODE_ECB)) {
+			cipher.init(Cipher.DECRYPT_MODE, key);
+		}else {
+			cipher.init(Cipher.DECRYPT_MODE, key, iv);
+		}
+		byte[] plainText = cipher.doFinal(Base64.getDecoder().decode(input));
+		String output = new String(plainText, "UTF-8");
+		return output;
+	}
+	public void encryptFile(String srcFile, String destFile) throws Exception {
+        FileInputStream fis = null;
+        FileOutputStream fos = null;
+        try {
+            if (key == null) throw new Exception("Key Not Found");
+            File fileSrc = new File(srcFile);
+            if (fileSrc.isFile()) {
+    	        String instance = "Twofish/" + mode + "/" + padding;
+                Cipher cipher = Cipher.getInstance(instance, "BC");
+                if (mode.equals(DES_AES_Config.MODE_ECB)) cipher.init(Cipher.ENCRYPT_MODE, key);
+                else cipher.init(Cipher.ENCRYPT_MODE, key, iv);
+
+                fis = new FileInputStream(fileSrc);
+                fos = new FileOutputStream(destFile);
+
+                byte[] input_byte = new byte[1024];
+                int bytes_read;
+                while ((bytes_read = fis.read(input_byte)) != -1) {
+                    byte[] output_byte = cipher.update(input_byte, 0, bytes_read);
+                    if (output_byte != null) fos.write(output_byte);
+                }
+                byte[] output = cipher.doFinal();
+                if (output != null) fos.write(output);
+                fos.flush();
+            }
+        } finally {
+            if (fis != null) fis.close();
+            if (fos != null) fos.close();
+        }
+
+    }
+	public void decryptFile(String srcFile, String destFile) throws Exception {
+        FileInputStream fis = null;
+        FileOutputStream fos = null;
+        try {
+            if (key == null) throw new Exception("Key Not Found");
+            File fileSrc = new File(srcFile);
+            if (fileSrc.isFile()) {
+            	String instance = "Twofish/" + mode + "/" + padding;
+                Cipher cipher = Cipher.getInstance(instance, "BC");
+                if (mode.equals(DES_AES_Config.MODE_ECB)) cipher.init(Cipher.DECRYPT_MODE, key);
+                else cipher.init(Cipher.DECRYPT_MODE, key, iv);
+
+                fis = new FileInputStream(fileSrc);
+                fos = new FileOutputStream(destFile);
+
+                byte[] input_byte = new byte[1024];
+                int bytes_read;
+                while ((bytes_read = fis.read(input_byte)) != -1) {
+                    byte[] output_byte = cipher.update(input_byte, 0, bytes_read);
+                    if (output_byte != null) fos.write(output_byte);
+                }
+                byte[] output = cipher.doFinal();
+                if (output != null) fos.write(output);
+                fos.flush();
+            }
+        } finally {
+
+            if (fis != null) fis.close();
+            if (fos != null) fos.close();
+        }
+
+    }
+	public static void main(String[] args) throws Exception {
+		
+	}
+}
